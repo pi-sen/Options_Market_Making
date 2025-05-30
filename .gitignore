@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Jupyter
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# Environment
+venv/
+env/
+.env
+
+# Data files
+*.csv
+*.xlsx
+data/raw/*
+data/processed/*
+
+# Logs
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
