@@ -105,3 +105,4 @@ print(f"Call Option Delta: {delta_value:.2f}")
 market_price = 10.0  # Example market price for implied volatility calculation
 implied_vol = implied_volatility(S, K, T, r, market_price, option_type='call')
 print (f"Implied Volatility: {implied_vol:.2f}")
+
