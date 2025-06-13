@@ -10,7 +10,8 @@ This project implements a framework for options market making and backtesting us
 
 ## 📊 Strategy Components
 - **Data Import**: Fetches live SPY options data or loads historical data from CSV for backtesting.
-- **Options Pricing Engine**: Black-Scholes pricing and Greeks (Delta, Gamma, Theta, Vega) calculations.
+- **Options Pricing Engine**: Black-Scholes pricing and Greeks (Delta, Gamma, Theta, Vega) calculations. Calculate IV from market prices. Use market IV to fit a smooth model
+- **Build vol surface**: Use IV model to compute theoretical prices
 - **Market Making Logic**: Sets bid/ask quotes around theoretical fair value, simulates fills, and manages inventory.
 - **Risk Management**: Delta hedging, position limits, and PnL tracking.
 - **Backtesting Framework**: Evaluates strategy performance on historical data.
