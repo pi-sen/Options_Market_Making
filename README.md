@@ -26,6 +26,44 @@ This project implements a framework for options market making and backtesting us
 - `src/data_handler.py`: Data import from Yahoo Finance or CSV
 - `src/options_pricing.py`: Black-Scholes pricing and Greeks
 - `src/market_maker.py`: Market making logic and simulation
+- `src/vol_surface.py`: Fitting a vol surface using SABR model
 - `src/risk_manager.py`: Risk and inventory management
 - `src/backtester.py`: Backtesting engine
+
+## SABR Volatility Surface Fitting Workflow
+
+This section describes the steps for fitting a volatility surface using the SABR model in the `src/vol_surface.py` module.
+
+### 1. Import Required Libraries
+- Use `numpy`, `pandas`, `scipy.optimize`, and `matplotlib` for calculations and visualization.
+
+### 2. Implement the SABR Implied Volatility Formula
+- Write a function to compute SABR implied volatility given parameters (alpha, beta, rho, nu), strike, forward, and expiry.
+
+### 3. Define the SABR Calibration Objective
+- Create a function that fits SABR parameters to market IVs for a given expiry by minimizing the error between model and market IVs.
+
+### 4. Fit SABR Parameters for Each Expiry
+- For each unique expiry (or expiry/tenor group), fit SABR parameters to the observed IVs across strikes.
+
+### 5. Store and Interpolate the Fitted Surface
+- Store the fitted SABR parameters for each expiry.
+- Optionally, interpolate parameters across expiries for a smooth surface.
+
+### 6. Create a Class or Functions for Surface Evaluation
+- Implement a class or functions that return the SABR IV for a given strike and expiry using the fitted parameters.
+
+### 7. Visualization and Diagnostics
+- Plot the fitted SABR surface versus market IVs to check fit quality.
+
+### 8. (Optional) Save/Load Fitted Surface
+- Save the fitted parameters to disk for reuse in future analysis.
+
+---
+
+**Summary:**
+- Implement SABR formula and calibration
+- Fit parameters for each expiry
+- Evaluate and visualize the surface
+- Save/load fitted results as needed
 

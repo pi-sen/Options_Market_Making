@@ -51,7 +51,7 @@ if __name__== "__main__":
 
     if os.path.exists(final_parquet_path): # Check if final Parquet file exists
         df = pd.read_parquet(final_parquet_path) # if it exists, then load it
-        print("Loaded data from final Parquet file.")
+        print("Loaded final data from final Parquet file.")
     else:
         if os.path.exists(parquet_path): # Check if Parquet file exists
             df = pd.read_parquet(parquet_path)
