@@ -3,6 +3,7 @@ import dask.dataframe as dd
 import pandas as pd
 from options_pricing import blackscholes, delta, implied_volatility
 import winsound
+import numpy as np
 
 # Function to load all option text files from a folder
 def load_all_option_txt_files(folder_path, sep=','):
@@ -40,7 +41,7 @@ def calc_iv_partition(df):
             r=0.05,
             market_price=row['C_LAST'],
             option_type='call'
-        ) if pd.notnull(row['C_LAST']) and row['C_LAST'] > 0 else 0, axis=1
+        ) if pd.notnull(row['C_LAST']) and row['C_LAST'] > 0 else np.nan, axis=1
     )
     return df
 
