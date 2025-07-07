@@ -4,7 +4,10 @@ import dask.dataframe as dd
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import seaborn as sns
+from multiprocessing import Pool
+import time
 
+start_time = time.time()
 
 def sabr_implied_vol(F, K, T, alpha, beta, rho, nu):
     """
@@ -54,44 +57,116 @@ def fit_sabr_slice(df_slice):
     Returns:
         dict: Fitted SABR parameters and metrics
     """
-    F = df_slice['UNDERLYING_LAST'].iloc[0]  # Use first spot price
-    T = df_slice['DTE'].iloc[0] / 365.0  # Convert DTE to years
+    required_columns = ['UNDERLYING_LAST', 'STRIKE', 'DTE', 'C_IV_CALC']
     
-    def objective(params):
-        alpha, beta, rho, nu = params
-        model_ivs = [sabr_implied_vol(F, K, T, alpha, beta, rho, nu) 
-                    for K in df_slice['STRIKE']]
-        error = np.sum((np.array(model_ivs) - df_slice['C_IV_CALC'])**2)
-        return error
-    
-    # Initial guess and bounds
-    initial_guess = [0.2, 0.5, 0.0, 0.2]  # [alpha, beta, rho, nu]
-    bounds = [(1e-6, 2.0),  # alpha > 0
-             (0.01, 0.99),  # 0 < beta < 1
-             (-0.99, 0.99), # -1 < rho < 1
-             (1e-6, 2.0)]   # nu > 0
-    
-    result = minimize(objective, initial_guess, bounds=bounds, method='L-BFGS-B')
-    
-    if result.success:
-        alpha, beta, rho, nu = result.x
-        fitted_ivs = [sabr_implied_vol(F, K, T, alpha, beta, rho, nu) 
-                     for K in df_slice['STRIKE']]
-        rmse = np.sqrt(np.mean((np.array(fitted_ivs) - df_slice['C_IV_CALC'])**2))
-        
-        return {
-            'alpha': alpha,
-            'beta': beta,
-            'rho': rho,
-            'nu': nu,
-            'rmse': rmse,
-            'success': True,
-            'message': result.message
-        }
-    else:
+    if len(df_slice) < 5:  # Need minimum points for reliable fit
         return {
             'success': False,
-            'message': result.message
+            'message': 'Insufficient data points'
+        }
+
+
+    F = df_slice['UNDERLYING_LAST'].iloc[0]  # Use first spot price
+    T = df_slice['DTE'].iloc[0] / 365.0  # Convert DTE to years
+
+    if F<=0 or T <= 0: # Validate forward price and time to expiry
+        return {
+            'success': False,
+            'message': 'Invalid forward price or time to expiry'
+        }
+    
+    moneyness = df_slice['STRIKE'] / F # Calculate moneyness
+
+    try:
+        # Trying better initial parameters based on empirical values
+        # 1. Alpha is approximated to be ATM volatility IV
+        atm_idx = np.abs(moneyness - 1).argmin() # Retrieve index of ATM option
+        atm_iv = df_slice['C_IV_CALC'].iloc[atm_idx] # Get ATM implied volatility
+
+        # 2. Beta is typically around 0.5 for equity options
+        beta_int = 0.5 if T < 1 else 0.7
+
+        # 3. Rho (correlation from observed skewness)
+        # Skew is estimated as the difference between OTM and ATM IVs
+        itm_iv = df_slice[moneyness < 0.95]['C_IV_CALC'].mean()  # In-the-money IV
+        otm_iv = df_slice[moneyness > 1.05]['C_IV_CALC'].mean()  # Out-of-the-money IV
+
+        if np.isnan(itm_iv) or np.isnan(otm_iv):
+            rho_init = 0.0  # Default to zero if no ITM/OTM IVs
+        else:
+            skew = otm_iv - atm_iv
+            rho_init = -np.sign(skew) * min(0.5, abs(skew)) # Limit rho to [-0.5, 0.5]
+
+        # 4. Nu (volatility of volatility)
+        # Higher volatility of volatility for longer expiries
+        nu_init = 0.3 if T < 1 else 0.5
+
+        initial_guess = [atm_iv, beta_int, rho_init, nu_init]  # [alpha, beta, rho, nu]
+
+        # Bounds with validation
+        bounds = [(1e-6, 2.0),  # alpha > 0
+                 (0.0, 1.0),  # 0 < beta < 1
+                 (-1.0, 1.0), # -1 < rho < 1
+                 (0.01, 1.0)]   # nu > 0
+        
+
+    
+        def objective(params):
+            """
+            Objective function to minimize the sum of squared errors
+            between model and market implied volatilities.
+            Parameters:
+                params: List of SABR parameters [alpha, beta, rho, nu]
+            Returns:
+                float: Sum of squared errors
+            """
+            alpha, beta, rho, nu = params
+
+            # Early validation of parameters
+            if not (0 < alpha < 2 and 0 < beta < 1 and -1 < rho < 1 and nu > 0):
+                return 1e10  # Large penalty for invalid parameters
+            
+            model_ivs = []
+            for K in df_slice['STRIKE']:
+                try:
+                    iv = sabr_implied_vol(F, K, T, alpha, beta, rho, nu)
+                    if np.isnan(iv) or iv <= 0 or iv > 2:  # Invalid IV
+                        return 1e10
+                    model_ivs.append(iv)
+                except Exception:
+                    return 1e10
+            
+            model_ivs = np.array(model_ivs)
+            error = np.sum((model_ivs - df_slice['C_IV_CALC'])**2)
+            return error
+
+    
+        result = minimize(objective, initial_guess, bounds=bounds, method='L-BFGS-B')
+    
+        if result.success:
+            alpha, beta, rho, nu = result.x
+            fitted_ivs = [sabr_implied_vol(F, K, T, alpha, beta, rho, nu) 
+                     for K in df_slice['STRIKE']]
+            rmse = np.sqrt(np.mean((np.array(fitted_ivs) - df_slice['C_IV_CALC'])**2))
+        
+            return {
+                'alpha': alpha,
+                'beta': beta,
+                'rho': rho,
+                'nu': nu,
+                'rmse': rmse,
+                'success': True,
+                'message': result.message
+            }
+        else:
+            return {
+                'success': False,
+                'message': result.message
+            }
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f'Error during calibration: {str(e)}'
         }
 
 def calibrate_sabr_surface(df):
@@ -127,19 +202,22 @@ def plot_sabr_fit(df_slice, params):
     F = df_slice['UNDERLYING_LAST'].iloc[0]
     T = df_slice['DTE'].iloc[0] / 365.0
     
+    # Calculate the moneyness
+    df_slice['MONEYNESS'] = df_slice['STRIKE'] / F
+    
     # Sort by strike for plotting
-    df_sorted = df_slice.sort_values('STRIKE')
+    df_sorted = df_slice.sort_values('MONEYNESS')
     
     # Calculate fitted IVs
     fitted_ivs = [sabr_implied_vol(F, K, T, params['alpha'], params['beta'], 
                                  params['rho'], params['nu']) 
                  for K in df_sorted['STRIKE']]
     
-    plt.figure(figsize=(10, 6))
-    plt.plot(df_sorted['STRIKE'], df_sorted['C_IV_CALC'], 'o', label='Market IV')
-    plt.plot(df_sorted['STRIKE'], fitted_ivs, '-', label='SABR Fit')
+    plt.figure(figsize=(12, 7))
+    plt.plot(df_sorted['MONEYNESS'], df_sorted['C_IV_CALC'], 'o', label='Market IV')
+    plt.plot(df_sorted['MONEYNESS'], fitted_ivs, '-', label='SABR Fit')
     plt.title(f'SABR Fit vs Market IV (DTE={df_slice["DTE"].iloc[0]:.0f})')
-    plt.xlabel('Strike')
+    plt.xlabel('MONEYNESS')
     plt.ylabel('Implied Volatility')
     plt.legend()
     plt.grid(True)
@@ -149,7 +227,7 @@ def plot_sabr_fit(df_slice, params):
 if __name__ == "__main__":
     # Load your data
     parquet_path = 'data/processed/option_data_final.parquet'
-    df = pd.read_parquet(parquet_path).head(2000)  # Load a subset for testing
+    df = pd.read_parquet(parquet_path).head(20000)  # Load the parquet file
     
     # Filter out rows with NaN implied volatility
     df.dropna(subset=['C_IV_CALC'])
@@ -164,9 +242,24 @@ if __name__ == "__main__":
     print(sabr_params)
     
     # Plot fit for a specific expiry
-    first_dte = df['DTE'].iloc[0]
-    df_slice = df[df['DTE'] == first_dte]
-    first_params = sabr_params[sabr_params['dte'] == first_dte].iloc[0].to_dict()
-    plot_sabr_fit(df_slice, first_params)
+    if not sabr_params.empty:
+        # Try to use first_dte if it exists in calibrated params
+        first_dte = df['DTE'].iloc[0]
+        matching_params = sabr_params[sabr_params['dte'] == first_dte]
+        
+        # If not found, use the first available calibrated DTE
+        if matching_params.empty:
+            first_dte = sabr_params['dte'].iloc[0]
+            matching_params = sabr_params[sabr_params['dte'] == first_dte]
+        
+            # Get parameters and plot
+            first_params = matching_params.iloc[0].to_dict()
+            df_slice = df[df['DTE'] == first_dte]
+            plot_sabr_fit(df_slice, first_params)
+    else:
+        print("No successful calibrations available for plotting")
+
+    end_time = time.time()
+    print(f"\nTotal execution time: {end_time - start_time:.2f} seconds")
 
 

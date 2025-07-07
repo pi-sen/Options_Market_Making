@@ -59,6 +59,42 @@ This section describes the steps for fitting a volatility surface using the SABR
 ### 8. (Optional) Save/Load Fitted Surface
 - Save the fitted parameters to disk for reuse in future analysis.
 
+### 9. Enhanced Parameter Initialization
+The calibration process has been improved with smarter initial parameter guesses:
+
+1. **Alpha (α)**: Initialized using ATM implied volatility
+   - Uses moneyness (K/F) to find closest ATM option
+   - Provides better starting point for optimization
+
+2. **Beta (β)**: Maturity-dependent initialization
+   - β = 0.5 for short-term options (T < 1 year)
+   - β = 0.7 for longer-dated options
+   - Typical range for equity options: [0.3, 0.7]
+
+3. **Rho (ρ)**: Data-driven skew estimation
+   - Calculated from observed volatility skew
+   - Uses ITM (moneyness < 0.95) and OTM (moneyness > 1.05) IV differences
+   - Sign aligned with market skew direction
+   - Bounded within [-0.5, 0.5]
+
+4. **Nu (ν)**: Term structure aware
+   - ν = 0.3 for short-term options
+   - ν = 0.5 for longer-dated options
+   - Reflects higher vol-of-vol in longer expiries
+
+### Validation and Error Handling
+- Input data validation (required columns, minimum data points)
+- Parameter bounds validation pre and post optimization
+- RMSE quality checks for fit assessment
+- Comprehensive error handling and messaging
+
+### Visualization
+- Volatility smile plots now use moneyness (K/F) instead of strike
+- Added reference line for ATM point (moneyness = 1.0)
+- Display of calibrated parameters and fit quality metrics
+
+These improvements provide more robust and reliable SABR parameter calibration, particularly for equity options markets where the volatility surface exhibits typical characteristics like negative skew and term structure effects.
+
 ---
 
 **Summary:**
