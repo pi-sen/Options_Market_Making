@@ -221,7 +221,8 @@ def plot_sabr_fit(df_slice, params):
     plt.ylabel('Implied Volatility')
     plt.legend()
     plt.grid(True)
-    plt.show()
+    plt.savefig(f'results/sabr_fit_dte_{df_slice["DTE"].iloc[0]:.0f}.png', dpi=300, bbox_inches='tight')
+    plt.close()  # Close to free memory
 
 # Example usage:
 if __name__ == "__main__":
@@ -241,23 +242,16 @@ if __name__ == "__main__":
     print("\nSABR Parameters by Expiry:")
     print(sabr_params)
     
-    # Plot fit for a specific expiry
+    # Plot fits for all expiries
     if not sabr_params.empty:
-        # Try to use first_dte if it exists in calibrated params
-        first_dte = df['DTE'].iloc[0]
-        matching_params = sabr_params[sabr_params['dte'] == first_dte]
+        print(f"\nGenerating plots for {len(sabr_params)} expiries...")
+        for dte in sabr_params['dte']:
+            matching_params = sabr_params[sabr_params['dte'] == dte]
+            expiry_data = df[df['DTE'] == dte]
+            plot_sabr_fit(expiry_data, matching_params.iloc[0])
+            print(f"Saved plot for DTE = {dte:.0f}")
         
-        # If not found, use the first available calibrated DTE
-        if matching_params.empty:
-            first_dte = sabr_params['dte'].iloc[0]
-            matching_params = sabr_params[sabr_params['dte'] == first_dte]
-        
-            # Get parameters and plot
-            first_params = matching_params.iloc[0].to_dict()
-            df_slice = df[df['DTE'] == first_dte]
-            plot_sabr_fit(df_slice, first_params)
-    else:
-        print("No successful calibrations available for plotting")
+        print("All plots have been saved in the results directory.")
 
     end_time = time.time()
     print(f"\nTotal execution time: {end_time - start_time:.2f} seconds")
