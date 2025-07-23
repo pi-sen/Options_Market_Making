@@ -1,7 +1,7 @@
 # Delta-Based Options Market Making Strategy
 
 ## 🎯 Project Overview
-This project implements a framework for options market making and backtesting using real and historical data. The system fetches SPY options data from Yahoo Finance or loads historical options data from CSV files, calculates theoretical prices and Greeks, and simulates market making strategies with inventory and risk management.
+This project implements a framework for options market making and backtesting using historical data. The system fetches SPY options data from Yahoo Finance or loads historical options data from CSV files, calculates theoretical prices and Greeks, and simulates market making strategies with inventory and risk management.
 
 ## 🔍 Core Concepts
 **Market Making**: Acting as a liquidity provider by continuously quoting bid/ask prices for options contracts, aiming to profit from the bid-ask spread while managing inventory risk.
